@@ -44,7 +44,7 @@ if(!document.getElementById(SID)){
 .cldd-cancel{background:#f1f5f9;color:#475569;border:1.5px solid #e2e8f0}`;
   document.head.appendChild(s);}
 
-const ICONS={info:'💬',success:'✅',error:'❌',warning:'⚠️'};
+const ICONS={info:'',success:'',error:'',warning:''};
 const toasts=[];
 
 function dismiss(el){
