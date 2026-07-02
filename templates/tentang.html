@@ -15,7 +15,7 @@
   <!-- About cards -->
   <div class="grid sm:grid-cols-3 gap-4 mb-10">
     {% for icon, title, text in [
-      ('ri-target-line','Tujuan','Membantu petani mendeteksi penyakit daun jagung lebih awal untuk mengurangi kerugian panen.'),
+      ('ri-focus-2-line','Tujuan','Membantu petani mendeteksi penyakit daun jagung lebih awal untuk mengurangi kerugian panen.'),
       ('ri-cpu-line','Teknologi','Menggunakan model YOLOv8 yang telah dilatih dengan dataset Roboflow berlabel empat kelas penyakit.'),
       ('ri-graduation-cap-line','Latar Belakang','Setiap tahun Indonesia kehilangan hasil pertanian akibat penyakit tanaman yang terlambat terdeteksi.'),
     ] %}
@@ -37,8 +37,7 @@
         ('01','Upload / Kamera','Pengguna mengunggah gambar daun jagung atau mengambil foto langsung dari kamera perangkat.'),
         ('02','Pre-processing','Gambar diproses dan di-resize sesuai kebutuhan model YOLOv8 (640×640 piksel).'),
         ('03','Inferensi YOLOv8','Model memprediksi bounding box, kelas penyakit, dan confidence score untuk setiap objek.'),
-        ('04','Threshold Filter','Hanya deteksi dengan confidence ≥ 60% yang dianggap valid dan ditampilkan ke pengguna.'),
-        ('05','Hasil & Rekomendasi','Sistem menampilkan gambar beranotasi, nama penyakit, deskripsi, dan rekomendasi penanganan.'),
+        ('04','Hasil & Rekomendasi','Sistem menampilkan gambar beranotasi, nama penyakit, deskripsi, dan rekomendasi penanganan.'),
       ] %}
       <div class="flex gap-4">
         <span class="text-3xl font-bold text-green-200 font-mono leading-none shrink-0 w-10">{{ num }}</span>
