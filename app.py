@@ -22,7 +22,7 @@ print(f'[CLDD] model loaded  |  detect floor {DETECT_FLOOR:.0%}')
 
 # ── Class metadata ────────────────────────────────────────────
 CLASS_INFO = {
-    'Gray Spot': {
+    'gray_spot': {
         'label': 'Bercak Daun (Gray Leaf Spot)',
         'desc': (
             'Penyakit bercak daun ditandai dengan munculnya bercak kecil '
@@ -41,7 +41,7 @@ CLASS_INFO = {
             'Menjaga kebersihan lahan dan sirkulasi udara agar perkembangan jamur dapat diminimalkan',
         ],
     },
-    'Healthy': {
+    'health': {
         'label': 'Daun Sehat',
         'desc': (
             'Daun jagung terdeteksi dalam kondisi sehat dan tidak menunjukkan '
@@ -56,7 +56,7 @@ CLASS_INFO = {
             'Melakukan pemupukan sesuai kebutuhan tanaman jagung',
         ],
     },
-    'Corn Blight': {
+    'blight': {
         'label': 'Hawar Daun (Blight)',
         'desc': (
             'Penyakit hawar daun jagung disebabkan oleh jamur '
@@ -75,7 +75,7 @@ CLASS_INFO = {
             'Menjaga jarak tanam agar sirkulasi udara pada lahan tetap baik',
         ],
     },
-    'Common Rust': {
+    'common_rust': {
         'label': 'Karat Daun (Common Rust)',
         'desc': (
             'Penyakit karat daun ditandai dengan munculnya pustula berwarna '
