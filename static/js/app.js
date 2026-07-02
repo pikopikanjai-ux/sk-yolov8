@@ -337,22 +337,18 @@ function resetResult() {
 
 function renderResult(data) {
   const area = document.getElementById('resultArea'); if(!area) return;
+  const thr  = Math.round((data.threshold||0.6)*100);
 
-  // Tidak ada deteksi sama sekali — bukan berarti "daun sehat", melainkan
-  // gambar tidak dikenali sebagai daun jagung / kualitasnya kurang jelas.
+  // No valid detections
   if (!data.diseases || data.diseases.length===0) {
     area.innerHTML = `
       <div class="h-full flex flex-col items-center justify-center text-center py-12 gap-4 fade-in">
-        <div class="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center">
-          <i class="ri-image-2-line text-2xl text-amber-500"></i></div>
+        <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+          <i class="ri-search-eye-line text-2xl text-slate-300"></i></div>
         <div>
-          <p class="font-semibold text-slate-700">Gambar Tidak Dapat Dikenali</p>
-          <p class="text-slate-400 text-sm mt-1 max-w-xs leading-relaxed">
-            Sistem tidak menemukan ciri khas daun jagung pada gambar ini — ini
-            bukan berarti daunnya sehat. Kemungkinan gambar bukan daun jagung,
-            atau foto kurang jelas (buram, gelap, atau terlalu jauh). Coba
-            ambil ulang dengan pencahayaan cukup dan fokus dekat pada
-            permukaan daun.</p>
+          <p class="font-semibold text-slate-700">Tidak ditemukan penyakit</p>
+          <p class="text-slate-400 text-sm mt-1 max-w-xs">
+            Tidak ada deteksi dengan keyakinan ≥ ${thr}%. Coba foto yang lebih jelas.</p>
         </div>
         ${data.result_image?`
         <div class="w-full mt-2">
@@ -368,22 +364,8 @@ function renderResult(data) {
   const cards = diseases.map((d,i)=>{
     const pct = Math.round(d.best_confidence*100);
     const healthy = d.class_name==='healthy';
-
-    // Badge warna berdasarkan confidence
-    let badgeBg = '';
-
-    if (pct >= 85) {
-      badgeBg = 'bg-green-100 text-green-700';
-    } else if (pct >= 70) {
-      badgeBg = 'bg-yellow-100 text-yellow-700';
-    } else {
-      badgeBg = 'bg-red-100 text-red-700';
-    }
-
-    const barCl =
-      pct >= 85 ? 'bg-green-500' :
-      pct >= 70 ? 'bg-yellow-500' :
-                  'bg-red-500';
+    const badgeBg = healthy ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
+    const barCl   = pct>=80?'bg-green-500':pct>=60?'bg-amber-400':'bg-red-400';
 
     const solHtml = (!healthy && d.solutions?.length) ? `
       <div class="mt-3">
@@ -451,166 +433,267 @@ function renderResult(data) {
 // ═══════════════════════════════════════════════════════════════
 // PDF
 // ═══════════════════════════════════════════════════════════════
-
-// Warna & label tingkat keyakinan dipakai bersama di seluruh laporan PDF
-function _confLevel(pct) {
-  if (pct >= 85) return { text: 'Tinggi', rgb: [22,163,74],  bg: [220,252,231] };
-  if (pct >= 70) return { text: 'Sedang', rgb: [217,119,6],  bg: [254,243,199] };
-  return             { text: 'Rendah', rgb: [220,38,38],  bg: [254,226,226] };
-}
-
 function downloadPDF() {
   if (!detectionResult) {
     CLDD.alert({title:'Belum Ada Hasil',message:'Lakukan deteksi dahulu.',type:'info',okText:'OK'});
     return;
   }
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'mm',format:'a4'});
-  const pw=doc.internal.pageSize.getWidth();
-  const mg=18, cw=pw-mg*2;
-  const diseases=detectionResult.diseases||[];
 
-  // ── Header ────────────────────────────────────────────────
-  doc.setFillColor(21,128,61);  doc.rect(0,0,pw,32,'F');
-  doc.setFillColor(22,163,74);  doc.rect(0,0,pw,28,'F');
-  doc.setFillColor(255,255,255);doc.setDrawColor(255,255,255);
-  doc.circle(mg+3.2,14,3.2,'F');
-  doc.setTextColor(22,163,74);doc.setFontSize(9);doc.setFont('helvetica','bold');
-  doc.text('C',mg+3.2,15.6,{align:'center'});
-  doc.setTextColor(255,255,255);doc.setFontSize(15);doc.setFont('helvetica','bold');
-  doc.text('CLDD — Corn Leaf Disease Detector',mg+9,12.5);
-  doc.setFontSize(8.5);doc.setFont('helvetica','normal');
-  doc.setTextColor(220,252,231);
-  doc.text('Laporan Hasil Deteksi Penyakit Daun Jagung · YOLOv8',mg+9,18);
-  doc.setFontSize(7.5);
-  doc.text(`Dibuat pada ${new Date().toLocaleDateString('id-ID',{dateStyle:'long'})}, `
-    +`${new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}`,mg+9,23);
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({unit:'mm', format:'a4'});
+  const pw  = doc.internal.pageSize.getWidth();   // 210
+  const ph  = doc.internal.pageSize.getHeight();  // 297
+  const mg  = 20;   // margin kiri-kanan
+  const cw  = pw - mg * 2;  // content width = 170
+  const diseases = detectionResult.diseases || [];
 
-  let y=40;
+  // ── Helpers lokal ─────────────────────────────────────────
+  const C = {
+    green      : [22,  163,  74],
+    greenLight : [240, 253, 244],
+    greenMid   : [187, 247, 208],
+    amber      : [217, 119,   6],
+    amberLight : [255, 251, 235],
+    red        : [220,  38,  38],
+    slate900   : [ 15,  23,  42],
+    slate700   : [ 51,  65,  85],
+    slate500   : [100, 116, 139],
+    slate300   : [203, 213, 225],
+    slate100   : [241, 245, 249],
+    white      : [255, 255, 255],
+  };
 
-  // ── Gambar hasil deteksi ────────────────────────────────────
-  if(detectionResult.result_image){
-    doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(30,41,59);
-    doc.text('Hasil Analisis Gambar',mg,y); y+=4.5;
-    try{
-      doc.setFillColor(15,23,42);doc.roundedRect(mg,y,cw,72,2,2,'F');
-      doc.addImage(detectionResult.result_image,'JPEG',mg+1,y+1,cw-2,70);
-      doc.setDrawColor(226,232,240);doc.setLineWidth(0.4);doc.roundedRect(mg,y,cw,72,2,2);
-      y+=76;
-      doc.setFontSize(7.5);doc.setFont('helvetica','italic');doc.setTextColor(148,163,184);
-      doc.text('Kotak penanda pada gambar menunjukkan area deteksi beserta tingkat keyakinan model.',mg,y);
-      y+=7;
-    }catch{y+=4;}
+  function setColor(arr, alpha) {
+    // rgba not supported in jsPDF fill/stroke — we only set RGB
+    doc.setTextColor(...arr);
+  }
+  function fill(arr)   { doc.setFillColor(...arr); }
+  function stroke(arr) { doc.setDrawColor(...arr); }
+  function lw(n)       { doc.setLineWidth(n); }
+
+  function label(txt, x, y, size=8, style='normal', color=C.slate500) {
+    doc.setFont('helvetica', style);
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
+    doc.text(txt, x, y);
   }
 
-  // ── Tidak ada deteksi sama sekali ───────────────────────────
-  if(diseases.length===0){
-    doc.setFillColor(255,251,235);doc.setDrawColor(245,158,11);doc.setLineWidth(0.4);
-    doc.roundedRect(mg,y,cw,52,3,3,'FD');
-    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(146,64,14);
-    doc.text('Gambar Tidak Dapat Dikenali',mg+6,y+10);
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(120,90,30);
-    const msg = 'Sistem tidak menemukan ciri khas daun jagung pada gambar ini — ini bukan '
-      +'berarti daunnya sehat. Kemungkinan gambar bukan daun jagung, atau kualitas foto '
-      +'kurang jelas (buram, gelap, atau terlalu jauh).';
-    const ml = doc.splitTextToSize(msg, cw-12);
-    doc.text(ml, mg+6, y+18);
-    doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(146,64,14);
-    doc.text('Saran:', mg+6, y+18+ml.length*4.6+4);
-    doc.setFont('helvetica','normal');doc.setTextColor(120,90,30);
-    doc.text('Foto ulang dengan pencahayaan cukup dan fokus dekat pada permukaan daun.',
-      mg+6, y+18+ml.length*4.6+9);
-    _footer(doc,pw,mg); doc.save(`CLDD_TidakDikenali_${Date.now()}.pdf`);
-    CLDD.success('PDF diunduh'); return;
+  function hline(y, x1=mg, x2=pw-mg, color=C.slate300, w=0.25) {
+    stroke(color); lw(w);
+    doc.line(x1, y, x2, y);
   }
 
-  // ── Badge multi-penyakit ─────────────────────────────────────
-  doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(30,41,59);
-  doc.text('Ringkasan Deteksi',mg,y); y+=1.5;
-  doc.setDrawColor(22,163,74);doc.setLineWidth(0.6);doc.line(mg,y,mg+26,y); y+=6;
+  // ── PAGE BACKGROUND — very subtle off-white ───────────────
+  fill([249,250,251]); doc.rect(0,0,pw,ph,'F');
+  // white content card
+  fill(C.white);
+  doc.roundedRect(mg-4, 8, cw+8, ph-20, 3, 3, 'F');
 
-  if(diseases.length>1){
-    doc.setFillColor(254,243,199);doc.setDrawColor(245,158,11);doc.setLineWidth(0.3);
-    doc.roundedRect(mg,y,cw,10,2,2,'FD');
-    doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(120,80,0);
-    doc.text(`${diseases.length} penyakit terdeteksi pada gambar ini`,mg+4,y+6.8);
-    y+=15;
+  // ── HEADER ────────────────────────────────────────────────
+  // Thin green accent bar on the left
+  fill(C.green);
+  doc.rect(mg-4, 8, 3, 38, 'F');
+
+  // Logo dot + title
+  fill(C.green);
+  doc.circle(mg+5, 20, 3.5, 'F');
+  fill(C.white);
+  doc.circle(mg+5, 20, 1.5, 'F');
+
+  label('CLDD', mg+12, 18, 15, 'bold', C.slate900);
+  label('Corn Leaf Disease Detector', mg+12, 24, 8, 'normal', C.slate500);
+
+  // Date — right aligned
+  const dateStr = new Date().toLocaleDateString('id-ID',{dateStyle:'long'});
+  label(dateStr, pw-mg, 18, 8, 'normal', C.slate500);
+  doc.setFont('helvetica','normal'); // reset
+  // right-align date manually
+  const dateW = doc.getTextWidth(dateStr);
+  doc.setTextColor(...C.slate500);
+  doc.setFontSize(8);
+  doc.text(dateStr, pw-mg-dateW, 18);
+
+  label('Laporan Hasil Deteksi Penyakit Daun Jagung', mg+12, 30, 8, 'normal', C.slate500);
+  label('Model: YOLOv8 · Confidence threshold: 25%', mg+12, 36, 7.5, 'normal', C.slate300);
+
+  hline(48, mg-4, pw-mg+4, C.slate300, 0.3);
+
+  let y = 56;
+
+  // ── RESULT IMAGE ──────────────────────────────────────────
+  if (detectionResult.result_image) {
+    try {
+      // Use a temporary canvas to get natural aspect ratio
+      const img = new Image();
+      img.src = detectionResult.result_image;
+      // Calculate proportional height: cap width at cw, max height 72mm
+      const natW = img.naturalWidth  || 640;
+      const natH = img.naturalHeight || 480;
+      const ratio = natH / natW;
+      const imgW  = cw;
+      const imgH  = Math.min(imgW * ratio, 72);   // max 72mm tall
+
+      // Shadow effect — light grey rect slightly offset
+      fill([229,231,235]);
+      doc.roundedRect(mg+1, y+1, imgW, imgH, 2, 2, 'F');
+
+      // Image
+      doc.addImage(detectionResult.result_image, 'JPEG', mg, y, imgW, imgH, '', 'FAST');
+
+      // Thin border
+      stroke(C.slate300); lw(0.25);
+      doc.roundedRect(mg, y, imgW, imgH, 2, 2, 'S');
+
+      // Caption below image
+      label('Gambar hasil anotasi YOLOv8', mg, y + imgH + 5, 7.5, 'normal', C.slate300);
+
+      y += imgH + 12;
+    } catch(e) {
+      y += 4;
+    }
   }
 
-  diseases.forEach((d,idx)=>{
-    if(y>225){doc.addPage();y=18;}
-    const pct=Math.round(d.best_confidence*100);
-    const healthy=d.class_name==='healthy';
-    const lvl = healthy ? {text:'Sehat', rgb:[22,163,74], bg:[220,252,231]} : _confLevel(pct);
+  // ── NO DETECTION ──────────────────────────────────────────
+  if (diseases.length === 0) {
+    fill(C.slate100); stroke(C.slate300); lw(0.3);
+    doc.roundedRect(mg, y, cw, 20, 2, 2, 'FD');
+    label('Tidak ada objek yang terdeteksi pada gambar ini.', mg+6, y+9, 9, 'bold', C.slate700);
+    label('Pastikan gambar menampilkan daun jagung dengan jelas.', mg+6, y+15, 8, 'normal', C.slate500);
+    _footer(doc, pw, ph, mg);
+    doc.save(`CLDD_TidakTerdeteksi_${Date.now()}.pdf`);
+    CLDD.success('PDF diunduh');
+    return;
+  }
 
-    // Ukuran kartu header disesuaikan tinggi teks label
-    const headH = 25;
-    doc.setFillColor(...lvl.bg);
-    doc.roundedRect(mg,y,cw,headH,2,2,'F');
-    // Aksen warna di sisi kiri kartu
-    doc.setFillColor(...lvl.rgb);
-    doc.roundedRect(mg,y,3,headH,2,2,'F');
-    doc.setFillColor(...lvl.rgb);
-    doc.rect(mg+1.5,y,1.5,headH,'F');
+  // ── MULTI-DISEASE SUMMARY ─────────────────────────────────
+  if (diseases.length > 1) {
+    fill(C.amberLight); stroke([253,230,138]); lw(0.3);
+    doc.roundedRect(mg, y, cw, 11, 2, 2, 'FD');
+    // amber dot
+    fill(C.amber); doc.circle(mg+5, y+5.5, 1.5, 'F');
+    label(`${diseases.length} kondisi terdeteksi pada gambar ini`, mg+10, y+7, 8.5, 'bold', C.amber);
+    y += 17;
+  }
 
-    doc.setTextColor(30,30,30);doc.setFontSize(11);doc.setFont('helvetica','bold');
-    doc.text(`${diseases.length>1?idx+1+'. ':''}${d.label}`,mg+7,y+9);
+  // ── EACH DISEASE ──────────────────────────────────────────
+  diseases.forEach((d, idx) => {
+    if (y > 240) { doc.addPage(); _newPageBg(doc, pw, ph, mg, cw, C); y = 20; }
 
-    // Pill confidence di kanan atas kartu
-    const pillW = 30, pillX = mg+cw-pillW-3, pillY = y+3;
-    doc.setFillColor(255,255,255);doc.roundedRect(pillX,pillY,pillW,8,2,2,'F');
-    doc.setDrawColor(...lvl.rgb);doc.setLineWidth(0.3);doc.roundedRect(pillX,pillY,pillW,8,2,2);
-    doc.setTextColor(...lvl.rgb);doc.setFontSize(8);doc.setFont('helvetica','bold');
-    doc.text(`${pct}% · ${lvl.text}`, pillX+pillW/2, pillY+5.3, {align:'center'});
+    const pct     = Math.round(d.best_confidence * 100);
+    const healthy = d.class_name === 'healthy';
+    const accentC = healthy ? C.green : (pct >= 70 ? C.amber : C.red);
 
-    doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
-    doc.text('Tingkat keyakinan model',mg+7,y+16);
-    // Progress bar
-    const bx=mg+7,by=y+19,bw=cw-14,bh=2.3;
-    doc.setFillColor(255,255,255);doc.roundedRect(bx,by,bw,bh,1,1,'F');
-    doc.setFillColor(...lvl.rgb);doc.roundedRect(bx,by,bw*(pct/100),bh,1,1,'F');
-
-    y+=headH+6;
-
-    // Deskripsi
-    if(y>245){doc.addPage();y=18;}
-    doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(30,30,30);
-    doc.text('Deskripsi',mg,y);y+=4.5;
-    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(71,85,105);
-    const dl=doc.splitTextToSize(d.desc,cw);doc.text(dl,mg,y);y+=dl.length*4.8+5;
-
-    // Rekomendasi
-    if(!healthy&&d.solutions?.length){
-      if(y>242){doc.addPage();y=18;}
-      doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(30,30,30);
-      doc.text('Rekomendasi Penanganan',mg,y);y+=5;
-      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(71,85,105);
-      d.solutions.forEach((s,si)=>{
-        if(y>266){doc.addPage();y=18;}
-        doc.setFillColor(...lvl.rgb);doc.circle(mg+1.3,y-1.3,1.1,'F');
-        const ll=doc.splitTextToSize(s,cw-8);
-        doc.text(ll,mg+5,y);y+=ll.length*4.8+2.5;});
-      y+=2;
+    // ── Disease number pill (multi only) ─────────────────
+    if (diseases.length > 1) {
+      fill(accentC);
+      doc.roundedRect(mg, y, 6, 5, 1, 1, 'F');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...C.white);
+      doc.text(`${idx+1}`, mg+1.8, y+3.8);
+      label(d.label, mg+9, y+4, 11, 'bold', C.slate900);
+      y += 8;
+    } else {
+      label(d.label, mg, y, 13, 'bold', C.slate900);
+      y += 8;
     }
 
-    // Divider antar penyakit
-    if(idx<diseases.length-1){
-      y+=2;if(y<276){doc.setDrawColor(226,232,240);doc.setLineWidth(0.3);
-        doc.line(mg,y,pw-mg,y);}y+=7;}
+    // ── Confidence row ───────────────────────────────────
+    // Label
+    label('Tingkat Keyakinan', mg, y+3.5, 8, 'normal', C.slate500);
+    // Percentage — right side
+    const pctTxt = `${pct}%`;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...accentC);
+    doc.text(pctTxt, pw-mg, y+3.5, {align:'right'});
+
+    // Progress bar track
+    const barY = y+6, barH = 2.5, barW = cw;
+    fill(C.slate100); lw(0);
+    doc.roundedRect(mg, barY, barW, barH, 1, 1, 'F');
+    // Fill
+    fill(accentC);
+    doc.roundedRect(mg, barY, barW * (pct/100), barH, 1, 1, 'F');
+
+    y += 14;
+
+    // ── Description ──────────────────────────────────────
+    if (y > 248) { doc.addPage(); _newPageBg(doc,pw,ph,mg,cw,C); y = 20; }
+
+    label('Deskripsi', mg, y, 8, 'bold', C.slate700);
+    y += 4.5;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.slate500);
+    const descLines = doc.splitTextToSize(d.desc, cw);
+    doc.text(descLines, mg, y);
+    y += descLines.length * 4.6 + 7;
+
+    // ── Recommendations ───────────────────────────────────
+    if (!healthy && d.solutions?.length) {
+      if (y > 245) { doc.addPage(); _newPageBg(doc,pw,ph,mg,cw,C); y = 20; }
+
+      label('Rekomendasi Penanganan', mg, y, 8, 'bold', C.slate700);
+      y += 5;
+
+      d.solutions.forEach((s, si) => {
+        if (y > 272) { doc.addPage(); _newPageBg(doc,pw,ph,mg,cw,C); y = 20; }
+
+        // bullet dot
+        fill(accentC);
+        doc.circle(mg + 1.5, y - 0.5, 1, 'F');
+
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...C.slate500);
+        const sl = doc.splitTextToSize(s, cw - 7);
+        doc.text(sl, mg + 6, y);
+        y += sl.length * 4.6 + 2.5;
+      });
+    }
+
+    // ── Divider between diseases ──────────────────────────
+    if (idx < diseases.length - 1) {
+      y += 4;
+      if (y < 278) hline(y, mg, pw-mg, C.slate100, 0.4);
+      y += 8;
+    }
   });
 
-  _footer(doc,pw,mg);
+  _footer(doc, pw, ph, mg);
   doc.save(`CLDD_${diseases[0].class_name.replace(/\s+/g,'_')}_${Date.now()}.pdf`);
   CLDD.success('PDF berhasil diunduh!');
 }
 
-function _footer(doc,pw,mg){
-  const n=doc.internal.getNumberOfPages();
-  for(let i=1;i<=n;i++){
+// Draw subtle background for new pages
+function _newPageBg(doc, pw, ph, mg, cw, C) {
+  doc.setFillColor(249,250,251);
+  doc.rect(0, 0, pw, ph, 'F');
+  doc.setFillColor(...C.white);
+  doc.roundedRect(mg-4, 8, cw+8, ph-20, 3, 3, 'F');
+  // Left accent bar
+  doc.setFillColor(...C.green);
+  doc.rect(mg-4, 8, 3, ph-20, 'F');
+}
+
+function _footer(doc, pw, ph, mg) {
+  const n = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
     doc.setPage(i);
-    doc.setFillColor(22,163,74);doc.rect(0,282.5,pw,1,'F');
-    doc.setFillColor(15,23,42);doc.rect(0,283.5,pw,13.5,'F');
-    doc.setTextColor(148,163,184);doc.setFontSize(7.5);doc.setFont('helvetica','normal');
-    doc.text('© 2026 CLDD — Corn Leaf Disease Detector | Skripsi YOLOv8',mg,290);
-    doc.setFont('helvetica','bold');doc.setTextColor(226,232,240);
-    doc.text(`${i} / ${n}`,pw-mg,290,{align:'right'});}}
+
+    // Thin separator line
+    doc.setDrawColor(226,232,240);
+    doc.setLineWidth(0.25);
+    doc.line(mg, ph-14, pw-mg, ph-14);
+
+    // Left: branding
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(148,163,184);
+    doc.text('CLDD — Corn Leaf Disease Detector  ·  Skripsi YOLOv8  ·  © 2026', mg, ph-9);
+
+    // Right: page number
+    doc.text(`${i} / ${n}`, pw-mg, ph-9, {align:'right'});
+  }
+}
