@@ -182,7 +182,7 @@ def detect():
         bgr   = cv2.imread(path)
         ann   = draw_boxes(bgr, valid, names)
         diseases = build_diseases(valid, names)
-        disease_count = sum(1 for d in diseases if d['class_name'].lower() != 'Healthy')
+        disease_count = sum(1 for d in diseases if d['class_name'].lower() != 'health')
         return jsonify({
             'status':'success',
             'result_image': to_b64(ann),
