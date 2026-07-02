@@ -693,7 +693,7 @@ function _footer(doc, pw, ph, mg) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(7);
     doc.setTextColor(148,163,184);
-    doc.text('CLDD — Corn Leaf Disease Detector  ·  Skripsi YOLOv8  ·  © 2026', mg, ph-9);
+    doc.text('CLDD — Corn Leaf Disease Detector  ·  SK 11122005 YOLOv8  ·  © 2026', mg, ph-9);
 
     // Right: page number
     doc.text(`${i} / ${n}`, pw-mg, ph-9, {align:'right'});
