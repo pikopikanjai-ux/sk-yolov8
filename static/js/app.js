@@ -220,8 +220,10 @@ function setCamUI(state) {
         <p class="text-slate-600 text-xs mt-1">Tekan tombol di bawah untuk mulai</p></div>`;
     idle.classList.remove('hidden');
     lbl.textContent = 'Aktifkan Kamera';
-    btnTog.classList.replace('bg-red-500','bg-green-600');
-    btnTog.classList.replace('hover:bg-red-600','hover:bg-green-700');
+    btnTog.classList.replace('bg-red-600','bg-slate-800');
+    btnTog.classList.replace('hover:bg-red-700','hover:bg-slate-700');
+    btnTog.classList.remove('bg-red-500','hover:bg-red-600');
+    btnTog.classList.add('bg-slate-800','hover:bg-slate-700');
 
   } else if (state === 'requesting') {
     idle.innerHTML = `
@@ -236,15 +238,15 @@ function setCamUI(state) {
     guide.classList.remove('hidden');
     btnSnap.classList.remove('hidden');
     lbl.textContent = 'Matikan Kamera';
-    btnTog.classList.replace('bg-green-600','bg-red-500');
-    btnTog.classList.replace('hover:bg-green-700','hover:bg-red-600');
+    btnTog.classList.remove('bg-slate-800','hover:bg-slate-700');
+    btnTog.classList.add('bg-red-600','hover:bg-red-700');
 
   } else if (state === 'captured') {
     prev.classList.remove('hidden');
     btnRet.classList.remove('hidden');
     lbl.textContent = 'Matikan Kamera';
-    btnTog.classList.replace('bg-green-600','bg-red-500');
-    btnTog.classList.replace('hover:bg-green-700','hover:bg-red-600');
+    btnTog.classList.remove('bg-slate-800','hover:bg-slate-700');
+    btnTog.classList.add('bg-red-600','hover:bg-red-700');
   }
 }
 
@@ -421,10 +423,10 @@ function renderResult(data) {
       ${multiBadge}
       <div>${cards}</div>
       <button onclick="downloadPDF()"
-              class="mt-5 w-full py-3 border-2 border-green-600 hover:bg-green-50
-                     text-green-700 font-semibold rounded-xl flex items-center
-                     justify-center gap-2 text-sm transition-colors">
-        <i class="ri-file-pdf-line"></i> Unduh Laporan PDF
+              class="mt-5 w-full py-3 border border-slate-300 hover:border-slate-400
+                     hover:bg-slate-50 text-slate-600 font-medium rounded-xl flex items-center
+                     justify-center gap-2 text-sm transition-all active:scale-[.98]">
+        <i class="ri-file-pdf-line text-slate-400"></i> Unduh Laporan PDF
       </button>
     </div>`;
 }
