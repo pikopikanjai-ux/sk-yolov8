@@ -19,6 +19,15 @@ let photoTaken = false;
 // ═══════════════════════════════════════════════════════════════
 function switchTab(tab) {
   activeTab = tab;
+  _applyTabUI(tab);
+  if (tab === 'upload') stopCamera();
+  _clearState();
+}
+
+// Hanya mengubah tampilan tab (tanpa reset state, tanpa stopCamera).
+// Dipisah dari switchTab() supaya bisa dipakai ulang saat transisi
+// otomatis kamera -> upload di dalam runDetection().
+function _applyTabUI(tab) {
   const pu = document.getElementById('panelUpload');
   const pc = document.getElementById('panelCamera');
   const tu = document.getElementById('tabUpload');
@@ -31,7 +40,6 @@ function switchTab(tab) {
     tu.classList.remove('text-slate-500');
     tc.classList.remove('bg-white','text-green-700','shadow-sm');
     tc.classList.add('text-slate-500');
-    stopCamera();
   } else {
     pc.classList.remove('hidden'); pc.classList.add('flex');
     pu.classList.add('hidden');    pu.classList.remove('flex');
@@ -40,7 +48,6 @@ function switchTab(tab) {
     tu.classList.remove('bg-white','text-green-700','shadow-sm');
     tu.classList.add('text-slate-500');
   }
-  _clearState();
 }
 
 function _clearState() {
@@ -353,6 +360,23 @@ function runDetection() {
   if (isDetecting) return;
   isDetecting = true;
 
+  // Jika deteksi dijalankan dari tab kamera: tutup kamera, pindah ke tab
+  // upload, dan tampilkan foto yang baru diambil sebagai preview — supaya
+  // kamera tidak lagi terlihat terbuka selama proses deteksi berlangsung.
+  if (activeTab === 'camera') {
+    const fileToDetect = uploadedFile;
+    const camPrev = document.getElementById('camPreview');
+    const dataUrl = (camPrev && camPrev.src) || uploadedDataUrl;
+
+    stopCamera(); // catatan: stopCamera() mereset uploadedFile, makanya disimpan dulu di atas
+
+    uploadedFile    = fileToDetect;
+    uploadedDataUrl = dataUrl;
+    activeTab       = 'upload';
+    _applyTabUI('upload');
+    renderUploadPreview();
+  }
+
   // Loading on button
   const btn = document.getElementById(activeTab==='upload' ? 'detectBtn' : 'detectBtnCam');
   if (btn) {
@@ -439,37 +463,37 @@ function renderResult(data) {
 
   const diseases = data.diseases;
 
-  // Hitung hanya kelas penyakit (bukan healthy) untuk badge
-  const diseaseOnly = diseases.filter(d => d.class_name !== 'healthy');
+  // Hitung hanya kelas penyakit (bukan sehat) untuk badge.
+  // PENTING: key untuk kondisi sehat dari backend (app.py) adalah 'health',
+  // BUKAN 'healthy'. Harus konsisten di semua pengecekan di file ini.
+  const diseaseOnly = diseases.filter(d => d.class_name !== 'health');
   const multi       = diseases.length > 1;
 
-  // Helper warna badge
+  // ── Skema warna confidence ────────────────────────────────
+  // - Sehat: selalu hijau, 2 gradasi berdasarkan pct (≥90% lebih pekat).
+  // - Penyakit (jenis apapun): skema sama untuk semua — merah untuk ≥90%,
+  //   oren untuk <90%. Tidak dibedakan per jenis penyakit.
   function getBadgeClass(healthy, pct) {
     if (healthy) {
       return pct >= 90
         ? 'bg-green-600 text-white'
         : 'bg-green-100 text-green-700';
     }
-
-    if (pct >= 90) return 'bg-orange-500 text-white';
-    if (pct >= 75) return 'bg-orange-100 text-orange-700';
-    return 'bg-red-100 text-red-600';
+    return pct >= 90
+      ? 'bg-red-600 text-white'
+      : 'bg-orange-100 text-orange-700';
   }
 
-  // Helper warna progress bar
   function getBarClass(healthy, pct) {
     if (healthy) {
       return pct >= 90 ? 'bg-green-600' : 'bg-green-400';
     }
-
-    if (pct >= 90) return 'bg-orange-500';
-    if (pct >= 75) return 'bg-orange-400';
-    return 'bg-red-400';
+    return pct >= 90 ? 'bg-red-500' : 'bg-orange-400';
   }
 
   const cards = diseases.map((d,i)=>{
     const pct     = Math.round(d.best_confidence*100);
-    const healthy = d.class_name === 'healthy';
+    const healthy = d.class_name === 'health';
 
     const badgeBg = getBadgeClass(healthy, pct);
     const barCl   = getBarClass(healthy, pct);
@@ -708,8 +732,11 @@ function downloadPDF() {
     if (y > 240) { doc.addPage(); _newPageBg(doc, pw, ph, mg, cw, C); y = 20; }
 
     const pct     = Math.round(d.best_confidence * 100);
-    const healthy = d.class_name === 'healthy';
-    const accentC = healthy ? C.green : (pct >= 70 ? C.amber : C.red);
+    // PENTING: key sehat dari backend adalah 'health', bukan 'healthy'.
+    const healthy = d.class_name === 'health';
+    // Sama seperti di renderResult(): sehat -> hijau; penyakit -> merah
+    // (≥90%) atau oren (<90%), skema sama untuk semua jenis penyakit.
+    const accentC = healthy ? C.green : (pct >= 90 ? C.red : C.amber);
 
     // ── Disease number pill (multi only) ─────────────────
     if (diseases.length > 1) {
