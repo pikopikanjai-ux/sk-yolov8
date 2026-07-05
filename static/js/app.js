@@ -438,13 +438,41 @@ function renderResult(data) {
   }
 
   const diseases = data.diseases;
-  const multi    = diseases.length > 1;
+
+  // Hitung hanya kelas penyakit (bukan healthy) untuk badge
+  const diseaseOnly = diseases.filter(d => d.class_name !== 'healthy');
+  const multi       = diseases.length > 1;
+
+  // Helper warna badge
+  function getBadgeClass(healthy, pct) {
+    if (healthy) {
+      return pct >= 90
+        ? 'bg-green-600 text-white'
+        : 'bg-green-100 text-green-700';
+    }
+
+    if (pct >= 90) return 'bg-orange-500 text-white';
+    if (pct >= 75) return 'bg-orange-100 text-orange-700';
+    return 'bg-red-100 text-red-600';
+  }
+
+  // Helper warna progress bar
+  function getBarClass(healthy, pct) {
+    if (healthy) {
+      return pct >= 90 ? 'bg-green-600' : 'bg-green-400';
+    }
+
+    if (pct >= 90) return 'bg-orange-500';
+    if (pct >= 75) return 'bg-orange-400';
+    return 'bg-red-400';
+  }
 
   const cards = diseases.map((d,i)=>{
-    const pct = Math.round(d.best_confidence*100);
-    const healthy = d.class_name==='healthy';
-    const badgeBg = healthy ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
-    const barCl   = pct>=80?'bg-green-500':pct>=60?'bg-amber-400':'bg-red-400';
+    const pct     = Math.round(d.best_confidence*100);
+    const healthy = d.class_name === 'healthy';
+
+    const badgeBg = getBadgeClass(healthy, pct);
+    const barCl   = getBarClass(healthy, pct);
 
     const solHtml = (!healthy && d.solutions?.length) ? `
       <div class="mt-3">
@@ -459,55 +487,76 @@ function renderResult(data) {
         </ul>
       </div>` : '';
 
-    const divider = (multi && i<diseases.length-1)
-      ? '<div class="border-t border-slate-100 my-4"></div>' : '';
+    const divider = (multi && i < diseases.length - 1)
+      ? '<div class="border-t border-slate-100 my-4"></div>'
+      : '';
 
     return `
-      <div class="${i>0?'':''}">
+      <div>
         <div class="flex items-start justify-between gap-3 mb-2">
           <div>
             <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${badgeBg} mb-1.5">
-              ${pct}% keyakinan</span>
-            <h3 class="font-bold text-slate-800 text-sm leading-tight">${d.label}</h3>
+              ${pct}% keyakinan
+            </span>
+            <h3 class="font-bold text-slate-800 text-sm leading-tight">
+              ${d.label}
+            </h3>
           </div>
-          ${multi?`<span class="w-6 h-6 rounded-full bg-slate-100 text-slate-500
-                                flex items-center justify-center text-[11px] font-bold shrink-0">
-                     ${i+1}</span>`:''}
+
+          ${multi ? `
+            <span class="w-6 h-6 rounded-full bg-slate-100 text-slate-500
+                         flex items-center justify-center text-[11px] font-bold shrink-0">
+              ${i+1}
+            </span>` : ''}
         </div>
+
         <div class="h-1 bg-slate-100 rounded-full overflow-hidden mb-3">
-          <div class="${barCl} h-full rounded-full" style="width:${pct}%;transition:width .6s ease"></div>
+          <div class="${barCl} h-full rounded-full"
+               style="width:${pct}%;transition:width .6s ease"></div>
         </div>
-        <p class="text-xs text-slate-500 leading-relaxed">${d.desc}</p>
+
+        <p class="text-xs text-slate-500 leading-relaxed">
+          ${d.desc}
+        </p>
+
         ${solHtml}
         ${divider}
       </div>`;
   }).join('');
 
-  const multiBadge = multi ? `
-    <div class="flex items-center gap-2 text-xs font-medium text-amber-800
-                bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-4">
-      <i class="ri-alert-line text-amber-500"></i>
-      ${diseases.length} penyakit terdeteksi
+  // Badge hanya muncul jika ada lebih dari satu penyakit
+  const multiBadge = diseaseOnly.length > 1 ? `
+    <div class="flex items-center gap-2 text-xs font-medium text-orange-800
+                bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-4">
+      <i class="ri-alert-line text-orange-500"></i>
+      ${diseaseOnly.length} penyakit terdeteksi pada gambar ini
     </div>` : '';
 
   area.innerHTML = `
     <div class="fade-in flex flex-col gap-0">
-      ${data.result_image?`
+
+      ${data.result_image ? `
       <div class="rounded-xl overflow-hidden shadow-sm mb-5 border border-slate-100">
-        <img src="${data.result_image}" class="w-full object-contain max-h-56 bg-slate-900"
+        <img src="${data.result_image}"
+             class="w-full object-contain max-h-56 bg-slate-900"
              alt="Hasil deteksi">
-      </div>`:''}
+      </div>` : ''}
+
       ${multiBadge}
+
       <div>${cards}</div>
+
       <button onclick="downloadPDF()"
               class="mt-5 w-full py-3 border border-slate-300 hover:border-slate-400
-                     hover:bg-slate-50 text-slate-600 font-medium rounded-xl flex items-center
-                     justify-center gap-2 text-sm transition-all active:scale-[.98]">
-        <i class="ri-file-pdf-line text-slate-400"></i> Unduh Laporan PDF
+                     hover:bg-slate-50 text-slate-600 font-medium rounded-xl
+                     flex items-center justify-center gap-2 text-sm
+                     transition-all active:scale-[.98]">
+        <i class="ri-file-pdf-line text-slate-400"></i>
+        Unduh Laporan PDF
       </button>
+
     </div>`;
 }
-
 
 // ═══════════════════════════════════════════════════════════════
 // PDF
