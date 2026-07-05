@@ -121,6 +121,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (f) handleImageUpload({ target:{ files:[f] } });
     });
   }
+  // Fullscreen: jika user keluar manual (Escape/back), matikan kamera
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && camActive) stopCamera();
+  });
+  // Fallback Safari/iOS prefix
+  document.addEventListener('webkitfullscreenchange', () => {
+    if (!document.webkitFullscreenElement && camActive) stopCamera();
+  });
+
   console.log('%c✅ CLDD app.js ready', 'color:#16a34a;font-weight:700');
 });
 
@@ -143,6 +152,20 @@ async function startCamera() {
     const v = document.getElementById('camFeed');
     v.srcObject = camStream; await v.play();
     setCamUI('live');
+
+    // Masuk fullscreen — tampilkan viewfinder penuh
+    // _fakeFull dipakai sebagai fallback CSS untuk iOS Safari
+    const camBox = document.getElementById('camBox');
+    if (camBox) {
+      if (camBox.requestFullscreen) {
+        camBox.requestFullscreen().catch(() => _fakeFull(camBox));
+      } else if (camBox.webkitRequestFullscreen) {
+        camBox.webkitRequestFullscreen();
+      } else {
+        _fakeFull(camBox);
+      }
+    }
+
     CLDD.success('Kamera aktif');
   } catch(err) {
     camStream = null; camActive = false; setCamUI('idle');
@@ -158,10 +181,44 @@ async function startCamera() {
 }
 
 function stopCamera() {
+  // Keluar dari fullscreen jika sedang aktif
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  } else if (document.webkitFullscreenElement) {
+    document.webkitExitFullscreen();
+  }
+  // Keluar dari CSS fake fullscreen (fallback iOS)
+  _fakeFullExit();
+
   if (camStream) camStream.getTracks().forEach(t=>t.stop());
   camStream = null; camActive = false; photoTaken = false; uploadedFile = null;
   const v = document.getElementById('camFeed'); if(v) v.srcObject = null;
   setCamUI('idle'); setCamDetect(false);
+}
+
+// ── Fullscreen helpers ────────────────────────────────────────
+// Fallback untuk browser yang tidak support Fullscreen API (terutama iOS Safari).
+// Menggunakan position:fixed untuk efek visual yang sama.
+function _fakeFull(el) {
+  el.dataset.fakeFull = '1';
+  Object.assign(el.style, {
+    position:'fixed', inset:'0', zIndex:'9999',
+    width:'100vw', height:'100svh',
+    borderRadius:'0',
+  });
+  // Sembunyikan scroll body agar tidak ada konten lain yang terlihat
+  document.body.style.overflow = 'hidden';
+}
+
+function _fakeFullExit() {
+  const el = document.getElementById('camBox');
+  if (!el || !el.dataset.fakeFull) return;
+  delete el.dataset.fakeFull;
+  Object.assign(el.style, {
+    position:'', inset:'', zIndex:'',
+    width:'', height:'', borderRadius:'',
+  });
+  document.body.style.overflow = '';
 }
 
 function snapPhoto() {
@@ -693,7 +750,7 @@ function _footer(doc, pw, ph, mg) {
     doc.setFont('helvetica','normal');
     doc.setFontSize(7);
     doc.setTextColor(148,163,184);
-    doc.text('CLDD — Corn Leaf Disease Detector  ·  SK 11122005 YOLOv8  ·  © 2026', mg, ph-9);
+    doc.text('CLDD — Corn Leaf Disease Detector  ·  Skripsi YOLOv8  ·  © 2026', mg, ph-9);
 
     // Right: page number
     doc.text(`${i} / ${n}`, pw-mg, ph-9, {align:'right'});
