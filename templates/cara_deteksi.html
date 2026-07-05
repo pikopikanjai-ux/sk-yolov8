@@ -15,7 +15,7 @@
       ('ri-camera-2-line','Ambil Foto','Foto daun jagung dengan jelas. Fokus pada bagian yang mencurigakan, gunakan cahaya yang cukup dari jarak 5–30 cm.'),
       ('ri-upload-cloud-2-line','Unggah atau Buka Kamera','Pilih tab Unggah Foto untuk memilih file dari perangkat, atau tab Kamera untuk memotret langsung.'),
       ('ri-search-eye-line','Klik Deteksi','Tekan tombol Mulai Deteksi. Model YOLOv8 akan menganalisis gambar secara otomatis.'),
-      ('ri-file-chart-line','Lihat Hasil','Hasil deteksi muncul lengkap dengan bounding box, nama penyakit, tingkat keyakinan, dan rekomendasi penanganan.'),
+      ('ri-file-chart-line','Lihat Hasil','Hasil deteksi muncul lengkap dengan bounding box, nama penyakit/daun sehat, tingkat keyakinan, dan rekomendasi penanganan (jika terdeteksi ada penyakit).'),
     ] %}
     {% for icon, title, desc in steps %}
     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
@@ -55,7 +55,7 @@
 
   <!-- Penyakit yang bisa dideteksi -->
   <div class="mt-8">
-    <h2 class="text-xl font-bold text-slate-900 mb-4">Penyakit yang Dapat Dideteksi</h2>
+    <h2 class="text-xl font-bold text-slate-900 mb-4">Objek yang Dapat Dideteksi</h2>
     <div class="grid sm:grid-cols-2 gap-3">
       {% for name, badge, color in [
         ('Bercak Daun','Gray Leaf Spot','amber'),
