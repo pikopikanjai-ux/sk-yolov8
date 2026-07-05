@@ -449,9 +449,13 @@ function renderResult(data) {
         <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
           <i class="ri-search-eye-line text-2xl text-slate-300"></i></div>
         <div>
-          <p class="font-semibold text-slate-700">Tidak ditemukan penyakit</p>
+          <p class="font-semibold text-slate-700">
+            Objek Tidak Terdeteksi
+          </p>
           <p class="text-slate-400 text-sm mt-1 max-w-xs">
-            Tidak ada deteksi dengan keyakinan ≥ ${thr}%. Coba foto yang lebih jelas.</p>
+            YOLOv8 tidak menemukan penyakit daun jagung maupun daun sehat pada gambar yang diunggah.
+            Pastikan gambar menampilkan daun jagung dengan jelas, tidak buram, dan memiliki pencahayaan yang cukup.
+          </p>
         </div>
         ${data.result_image?`
         <div class="w-full mt-2">
