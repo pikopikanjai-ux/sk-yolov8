@@ -201,12 +201,14 @@ function stopCamera() {
 // Menggunakan position:fixed untuk efek visual yang sama.
 function _fakeFull(el) {
   el.dataset.fakeFull = '1';
+  // Kelas ini dipakai oleh CSS selector di index.html
+  // untuk menampilkan #camOverlayBtns saat fullscreen CSS
+  el.classList.add('cam-fake-full');
   Object.assign(el.style, {
     position:'fixed', inset:'0', zIndex:'9999',
     width:'100vw', height:'100svh',
     borderRadius:'0',
   });
-  // Sembunyikan scroll body agar tidak ada konten lain yang terlihat
   document.body.style.overflow = 'hidden';
 }
 
@@ -214,6 +216,7 @@ function _fakeFullExit() {
   const el = document.getElementById('camBox');
   if (!el || !el.dataset.fakeFull) return;
   delete el.dataset.fakeFull;
+  el.classList.remove('cam-fake-full');
   Object.assign(el.style, {
     position:'', inset:'', zIndex:'',
     width:'', height:'', borderRadius:'',
@@ -254,21 +257,23 @@ function retakePhoto() {
 
 // ── Camera UI state machine ───────────────────────────────────
 function setCamUI(state) {
-  const idle    = document.getElementById('camIdle');
-  const feed    = document.getElementById('camFeed');
-  const prev    = document.getElementById('camPreview');
-  const guide   = document.getElementById('camGuide');
-  const btnTog  = document.getElementById('btnToggleCam');
-  const lbl     = document.getElementById('camToggleLabel');
-  const btnSnap = document.getElementById('btnSnap');
-  const btnRet  = document.getElementById('btnRetake');
+  const idle       = document.getElementById('camIdle');
+  const feed       = document.getElementById('camFeed');
+  const prev       = document.getElementById('camPreview');
+  const guide      = document.getElementById('camGuide');
+  const btnTog     = document.getElementById('btnToggleCam');   // di dalam camBox
+  const btnStartCam= document.getElementById('btnStartCam');    // di luar camBox (idle only)
+  const lbl        = document.getElementById('camToggleLabel');
+  const btnSnap    = document.getElementById('btnSnap');
+  const btnRet     = document.getElementById('btnRetake');
 
-  [idle,feed,prev,guide].forEach(el=>el&&el.classList.add('hidden'));
-  btnSnap&&btnSnap.classList.add('hidden');
-  btnRet&&btnRet.classList.add('hidden');
-  btnTog.disabled = false;
+  // Reset semua elemen visual
+  [idle,feed,prev,guide].forEach(el => el && el.classList.add('hidden'));
+  btnSnap && btnSnap.classList.add('hidden');
+  btnRet  && btnRet.classList.add('hidden');
 
   if (state === 'idle') {
+    // Tampilkan idle placeholder
     idle.innerHTML = `
       <div class="flex flex-col items-center text-center px-6 py-8">
         <div class="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center mb-3">
@@ -276,34 +281,49 @@ function setCamUI(state) {
         <p class="text-slate-400 text-sm font-medium">Kamera belum aktif</p>
         <p class="text-slate-600 text-xs mt-1">Tekan tombol di bawah untuk mulai</p></div>`;
     idle.classList.remove('hidden');
-    lbl.textContent = 'Aktifkan Kamera';
-    btnTog.classList.replace('bg-red-600','bg-slate-800');
-    btnTog.classList.replace('hover:bg-red-700','hover:bg-slate-700');
-    btnTog.classList.remove('bg-red-500','hover:bg-red-600');
-    btnTog.classList.add('bg-slate-800','hover:bg-slate-700');
+
+    // Tombol luar (btnStartCam) tampil, tombol dalam disembunyikan
+    if (btnStartCam) {
+      btnStartCam.classList.remove('hidden');
+      btnStartCam.disabled = false;
+      btnStartCam.innerHTML = '<i class="ri-camera-line"></i> Aktifkan Kamera';
+      btnStartCam.className = btnStartCam.className
+        .replace(/bg-red-\w+/g,'').replace(/hover:bg-red-\w+/g,'').trim();
+      btnStartCam.classList.add('bg-green-600','hover:bg-green-700');
+    }
+
+    // Tombol dalam (btnToggleCam) tetap ada tapi overlay tersembunyi via CSS
+    if (btnTog)  { btnTog.disabled = false; lbl && (lbl.textContent = 'Aktifkan'); }
 
   } else if (state === 'requesting') {
     idle.innerHTML = `
       <div class="flex flex-col items-center text-center px-6 py-8">
-        <div class="w-10 h-10 border-4 border-green-400 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <div class="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin mb-3"></div>
         <p class="text-slate-400 text-sm">Meminta akses kamera…</p></div>`;
     idle.classList.remove('hidden');
-    btnTog.disabled = true;
+    // Nonaktifkan kedua tombol sementara
+    if (btnStartCam) { btnStartCam.disabled = true; }
+    if (btnTog)      { btnTog.disabled = true; }
 
   } else if (state === 'live') {
+    // Sembunyikan tombol luar — kamera sudah fullscreen
+    if (btnStartCam) btnStartCam.classList.add('hidden');
+
     feed.classList.remove('hidden');
     guide.classList.remove('hidden');
-    btnSnap.classList.remove('hidden');
-    lbl.textContent = 'Matikan Kamera';
-    btnTog.classList.remove('bg-slate-800','hover:bg-slate-700');
-    btnTog.classList.add('bg-red-600','hover:bg-red-700');
+    btnSnap && btnSnap.classList.remove('hidden');
+
+    // Update label tombol dalam
+    if (btnTog)  { btnTog.disabled = false; lbl && (lbl.textContent = 'Matikan'); }
 
   } else if (state === 'captured') {
+    // Sembunyikan tombol luar
+    if (btnStartCam) btnStartCam.classList.add('hidden');
+
     prev.classList.remove('hidden');
-    btnRet.classList.remove('hidden');
-    lbl.textContent = 'Matikan Kamera';
-    btnTog.classList.remove('bg-slate-800','hover:bg-slate-700');
-    btnTog.classList.add('bg-red-600','hover:bg-red-700');
+    btnRet  && btnRet.classList.remove('hidden');
+
+    if (btnTog)  { btnTog.disabled = false; lbl && (lbl.textContent = 'Matikan'); }
   }
 }
 
