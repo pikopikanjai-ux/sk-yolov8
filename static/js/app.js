@@ -60,25 +60,65 @@ function _clearState() {
 // ═══════════════════════════════════════════════════════════════
 // UPLOAD TAB
 // ═══════════════════════════════════════════════════════════════
+// Format yang didukung — harus sinkron dengan ALLOWED di app.py.
+// Validasi ini dilakukan di client SEBELUM file diterima, supaya file
+// yang jelas-jelas salah format (pdf, video, dll) tidak sempat tampil
+// sebagai "Siap dideteksi" lalu baru ditolak saat tombol Deteksi ditekan.
+const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'webp'];
+
+function _isValidImageFile(file) {
+  const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+  return ALLOWED_EXT.includes(ext) && file.type.startsWith('image/');
+}
+
 function handleImageUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) { CLDD.error('Ukuran file maksimal 5 MB!'); return; }
 
-  uploadedFile = file;
   detectionResult = null;
+
+  if (!_isValidImageFile(file)) {
+    // Format tidak didukung — jangan simpan sebagai uploadedFile,
+    // supaya tombol Deteksi tidak bisa lanjut memprosesnya.
+    uploadedFile    = null;
+    uploadedDataUrl = null;
+    renderUploadPreview(false, file.name);
+    CLDD.error('Format file tidak didukung. Gunakan JPG, PNG, atau WEBP.');
+    return;
+  }
+
+  uploadedFile = file;
   const reader = new FileReader();
   reader.onload = ev => {
     uploadedDataUrl = ev.target.result;
-    renderUploadPreview();
+    renderUploadPreview(true);
     CLDD.success('Gambar siap dideteksi');
   };
   reader.readAsDataURL(file);
 }
 
-function renderUploadPreview() {
+function renderUploadPreview(isValid = true, fileName = '') {
   const c = document.getElementById('previewContainer');
   if (!c) return;
+
+  if (!isValid) {
+    c.innerHTML = `
+      <div class="relative w-full flex flex-col items-center justify-center text-center py-6 px-4">
+        <button onclick="removeImage(event)"
+                class="absolute top-1 right-1 leading-none cursor-pointer">
+          <i class="ri-close-circle-fill text-2xl text-red-400 hover:text-red-600 drop-shadow"></i>
+        </button>
+        <div class="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-3">
+          <i class="ri-file-warning-line text-2xl text-red-400"></i>
+        </div>
+        <p class="text-sm font-medium text-slate-700 max-w-[220px] truncate">${fileName}</p>
+        <p class="text-xs text-red-500 font-semibold mt-1">Tidak dapat dideteksi</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Gunakan format JPG, PNG, atau WEBP</p>
+      </div>`;
+    return;
+  }
+
   c.innerHTML = `
     <div class="relative w-full flex items-center justify-center py-2">
       <img src="${uploadedDataUrl}"
@@ -449,13 +489,9 @@ function renderResult(data) {
         <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
           <i class="ri-search-eye-line text-2xl text-slate-300"></i></div>
         <div>
-          <p class="font-semibold text-slate-700">
-            Objek Tidak Terdeteksi
-          </p>
+          <p class="font-semibold text-slate-700">Tidak ditemukan penyakit</p>
           <p class="text-slate-400 text-sm mt-1 max-w-xs">
-            YOLOv8 tidak menemukan penyakit daun jagung maupun daun sehat pada gambar yang diunggah.
-            Pastikan gambar menampilkan daun jagung dengan jelas, tidak buram, dan memiliki pencahayaan yang cukup.
-          </p>
+            Tidak ada deteksi dengan keyakinan ≥ ${thr}%. Coba foto yang lebih jelas.</p>
         </div>
         ${data.result_image?`
         <div class="w-full mt-2">
