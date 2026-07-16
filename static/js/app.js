@@ -19,6 +19,15 @@ let photoTaken = false;
 // ═══════════════════════════════════════════════════════════════
 function switchTab(tab) {
   activeTab = tab;
+  _applyTabUI(tab);
+  if (tab === 'upload') stopCamera();
+  _clearState();
+}
+
+// Hanya mengubah tampilan tab (tanpa reset state, tanpa stopCamera).
+// Dipisah dari switchTab() supaya bisa dipakai ulang saat transisi
+// otomatis kamera -> upload di dalam runDetection().
+function _applyTabUI(tab) {
   const pu = document.getElementById('panelUpload');
   const pc = document.getElementById('panelCamera');
   const tu = document.getElementById('tabUpload');
@@ -31,7 +40,6 @@ function switchTab(tab) {
     tu.classList.remove('text-slate-500');
     tc.classList.remove('bg-white','text-green-700','shadow-sm');
     tc.classList.add('text-slate-500');
-    stopCamera();
   } else {
     pc.classList.remove('hidden'); pc.classList.add('flex');
     pu.classList.add('hidden');    pu.classList.remove('flex');
@@ -40,7 +48,6 @@ function switchTab(tab) {
     tu.classList.remove('bg-white','text-green-700','shadow-sm');
     tu.classList.add('text-slate-500');
   }
-  _clearState();
 }
 
 function _clearState() {
@@ -51,26 +58,51 @@ function _clearState() {
 
 
 // ═══════════════════════════════════════════════════════════════
-// UPLOAD TAB
+// KONFIRMASI SUMBER GAMBAR
 // ═══════════════════════════════════════════════════════════════
-// ── Popup konfirmasi sebelum upload / kamera ─────────────────
-// Menampilkan peringatan bahwa sistem hanya mendeteksi daun jagung.
-// Mengembalikan Promise<boolean> — true jika user klik Lanjutkan.
-function _confirmUpload() {
+// Ditampilkan sebelum: (1) file explorer dibuka, (2) file hasil
+// drag-drop diproses, dan (3) kamera diaktifkan — mengingatkan
+// pengguna bahwa sistem hanya mengenali daun jagung, sekaligus
+// memberi jalan pintas ke halaman "Cara Deteksi".
+function confirmImageSource() {
+  const caraUrl = window.CLDD_CARA_DETEKSI_URL || '/cara-deteksi';
   return CLDD.confirm({
-    title  : 'Perhatian Sebelum Mengunggah',
-    message: `Sistem ini dirancang khusus untuk mendeteksi penyakit pada <strong>daun jagung</strong>.<br><br>
-              Pastikan gambar yang Anda gunakan menampilkan daun jagung dengan jelas,
-              tidak buram, dan memiliki pencahayaan yang cukup agar hasil deteksi akurat.<br><br>
-              <a href="/cara-deteksi"
-                 class="text-green-600 underline underline-offset-2 text-xs font-medium"
-                 onclick="event.stopPropagation()">
-                Lihat panduan cara deteksi →
-              </a>`,
-    type      : 'info',
-    okText    : 'Lanjutkan',
+    title: 'Pastikan Ini Foto Daun Jagung',
+    message: `Sistem ini hanya dilatih untuk mendeteksi penyakit pada
+      <b>daun jagung</b>. Agar hasil deteksi akurat, pastikan gambar yang
+      akan diunggah benar-benar menampilkan daun jagung — bukan objek,
+      dokumen, atau tanaman lain.<br><br>
+      <a href="${caraUrl}"
+         class="inline-flex items-center gap-1 text-green-600 font-semibold
+                hover:text-green-700 hover:underline">
+        Lihat cara deteksi <i class="ri-arrow-right-line"></i>
+      </a>`,
+    type: 'warning',
+    okText: 'Mengerti, Lanjutkan',
     cancelText: 'Batal',
   });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// UPLOAD TAB
+// ═══════════════════════════════════════════════════════════════
+// Format yang didukung — harus sinkron dengan ALLOWED di app.py.
+// Validasi ini dilakukan di client SEBELUM file diterima, supaya file
+// yang jelas-jelas salah format (pdf, video, dll) tidak sempat tampil
+// sebagai "Siap dideteksi" lalu baru ditolak saat tombol Deteksi ditekan.
+const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'webp'];
+
+function _isValidImageFile(file) {
+  const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+  return ALLOWED_EXT.includes(ext) && file.type.startsWith('image/');
+}
+
+// Dipanggil saat area upload diklik (buka file explorer).
+// Tampilkan konfirmasi dulu sebelum dialog pilih file muncul.
+async function handleUploadZoneClick() {
+  const ok = await confirmImageSource();
+  if (ok) document.getElementById('fileInput').click();
 }
 
 function handleImageUpload(e) {
@@ -78,20 +110,49 @@ function handleImageUpload(e) {
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) { CLDD.error('Ukuran file maksimal 5 MB!'); return; }
 
-  uploadedFile = file;
   detectionResult = null;
+
+  if (!_isValidImageFile(file)) {
+    // Format tidak didukung — jangan simpan sebagai uploadedFile,
+    // supaya tombol Deteksi tidak bisa lanjut memprosesnya.
+    uploadedFile    = null;
+    uploadedDataUrl = null;
+    renderUploadPreview(false, file.name);
+    CLDD.error('Format file tidak didukung. Gunakan JPG, PNG, atau WEBP.');
+    return;
+  }
+
+  uploadedFile = file;
   const reader = new FileReader();
   reader.onload = ev => {
     uploadedDataUrl = ev.target.result;
-    renderUploadPreview();
+    renderUploadPreview(true);
     CLDD.success('Gambar siap dideteksi');
   };
   reader.readAsDataURL(file);
 }
 
-function renderUploadPreview() {
+function renderUploadPreview(isValid = true, fileName = '') {
   const c = document.getElementById('previewContainer');
   if (!c) return;
+
+  if (!isValid) {
+    c.innerHTML = `
+      <div class="relative w-full flex flex-col items-center justify-center text-center py-6 px-4">
+        <button onclick="removeImage(event)"
+                class="absolute top-1 right-1 leading-none cursor-pointer">
+          <i class="ri-close-circle-fill text-2xl text-red-400 hover:text-red-600 drop-shadow"></i>
+        </button>
+        <div class="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-3">
+          <i class="ri-file-warning-line text-2xl text-red-400"></i>
+        </div>
+        <p class="text-sm font-medium text-slate-700 max-w-[220px] truncate">${fileName}</p>
+        <p class="text-xs text-red-500 font-semibold mt-1">Tidak dapat dideteksi</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Gunakan format JPG, PNG, atau WEBP</p>
+      </div>`;
+    return;
+  }
+
   c.innerHTML = `
     <div class="relative w-full flex items-center justify-center py-2">
       <img src="${uploadedDataUrl}"
@@ -127,17 +188,6 @@ async function removeImage(e) {
 document.addEventListener('DOMContentLoaded', () => {
   const zone = document.getElementById('uploadZone');
   if (zone) {
-    // Intercept klik pada uploadZone — tampilkan popup konfirmasi
-    // sebelum membuka file picker.
-    zone.addEventListener('click', async e => {
-      // Jangan intercept klik dari tombol hapus (removeImage) yang ada di dalam zone
-      if (e.target.closest('button')) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      const ok = await _confirmUpload();
-      if (ok) document.getElementById('fileInput').click();
-    }, true); // capture phase agar berjalan sebelum onclick di HTML
-
     zone.addEventListener('dragover', e => {
       e.preventDefault();
       zone.classList.add('border-green-400','bg-green-50/60');
@@ -150,8 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
       zone.classList.remove('border-green-400','bg-green-50/60');
       const f = e.dataTransfer.files[0];
       if (!f) return;
-      // Tampilkan popup konfirmasi sebelum menerima file dari drag-drop
-      const ok = await _confirmUpload();
+      const ok = await confirmImageSource();
       if (ok) handleImageUpload({ target:{ files:[f] } });
     });
   }
@@ -172,13 +221,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // CAMERA TAB
 // ═══════════════════════════════════════════════════════════════
 async function toggleCamera() {
-  if (camActive) {
-    stopCamera();
-    return;
-  }
-  // Tampilkan popup konfirmasi sebelum membuka kamera
-  const ok = await _confirmUpload();
-  if (ok) await startCamera();
+  if (camActive) { stopCamera(); return; }
+  const ok = await confirmImageSource();
+  if (!ok) return;
+  await startCamera();
 }
 
 async function startCamera() {
@@ -393,6 +439,23 @@ function runDetection() {
   if (isDetecting) return;
   isDetecting = true;
 
+  // Jika deteksi dijalankan dari tab kamera: tutup kamera, pindah ke tab
+  // upload, dan tampilkan foto yang baru diambil sebagai preview — supaya
+  // kamera tidak lagi terlihat terbuka selama proses deteksi berlangsung.
+  if (activeTab === 'camera') {
+    const fileToDetect = uploadedFile;
+    const camPrev = document.getElementById('camPreview');
+    const dataUrl = (camPrev && camPrev.src) || uploadedDataUrl;
+
+    stopCamera(); // catatan: stopCamera() mereset uploadedFile, makanya disimpan dulu di atas
+
+    uploadedFile    = fileToDetect;
+    uploadedDataUrl = dataUrl;
+    activeTab       = 'upload';
+    _applyTabUI('upload');
+    renderUploadPreview();
+  }
+
   // Loading on button
   const btn = document.getElementById(activeTab==='upload' ? 'detectBtn' : 'detectBtnCam');
   if (btn) {
@@ -479,36 +542,38 @@ function renderResult(data) {
 
   const diseases = data.diseases;
 
-  // Hitung hanya kelas penyakit (bukan healthy) untuk badge
-  const diseaseOnly = diseases.filter(d => d.class_name !== 'healthy');
+  // Hitung hanya kelas penyakit (bukan sehat) untuk badge.
+  // PENTING: key untuk kondisi sehat dari backend (app.py) adalah 'health',
+  // BUKAN 'healthy'. Harus konsisten di semua pengecekan di file ini.
+  const diseaseOnly = diseases.filter(d => d.class_name !== 'health');
   const multi       = diseases.length > 1;
 
-  // ── Helper: tentukan warna badge & bar berdasarkan pct + jenis ──
-  // Healthy: hijau pekat (≥90%) atau hijau muda (<90%)
-  // Penyakit: oranye/merah sesuai tingkat keparahan confidence
+  // ── Skema warna confidence ────────────────────────────────
+  // - Sehat: selalu hijau, 2 gradasi berdasarkan pct (≥90% lebih pekat).
+  // - Penyakit (jenis apapun): skema sama untuk semua — merah untuk ≥90%,
+  //   oren untuk <90%. Tidak dibedakan per jenis penyakit.
   function getBadgeClass(healthy, pct) {
     if (healthy) {
       return pct >= 90
-        ? 'bg-green-600 text-white'          // hijau pekat — sangat yakin sehat
-        : 'bg-green-100 text-green-700';     // hijau muda — cukup yakin sehat
+        ? 'bg-green-600 text-white'
+        : 'bg-green-100 text-green-700';
     }
-    if (pct >= 90) return 'bg-orange-500 text-white';    // oranye pekat — deteksi kuat
-    if (pct >= 75) return 'bg-orange-100 text-orange-700'; // oranye muda
-    return 'bg-red-100 text-red-600';                    // merah muda — confidence rendah
+    return pct >= 90
+      ? 'bg-red-600 text-white'
+      : 'bg-orange-100 text-orange-700';
   }
 
   function getBarClass(healthy, pct) {
     if (healthy) {
       return pct >= 90 ? 'bg-green-600' : 'bg-green-400';
     }
-    if (pct >= 90) return 'bg-orange-500';
-    if (pct >= 75) return 'bg-orange-400';
-    return 'bg-red-400';
+    return pct >= 90 ? 'bg-red-500' : 'bg-orange-400';
   }
 
   const cards = diseases.map((d,i)=>{
     const pct     = Math.round(d.best_confidence*100);
-    const healthy = d.class_name === 'healthy';
+    const healthy = d.class_name === 'health';
+
     const badgeBg = getBadgeClass(healthy, pct);
     const barCl   = getBarClass(healthy, pct);
 
@@ -526,30 +591,43 @@ function renderResult(data) {
       </div>` : '';
 
     const divider = (multi && i < diseases.length - 1)
-      ? '<div class="border-t border-slate-100 my-4"></div>' : '';
+      ? '<div class="border-t border-slate-100 my-4"></div>'
+      : '';
 
     return `
       <div>
         <div class="flex items-start justify-between gap-3 mb-2">
           <div>
             <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${badgeBg} mb-1.5">
-              ${pct}% keyakinan</span>
-            <h3 class="font-bold text-slate-800 text-sm leading-tight">${d.label}</h3>
+              ${pct}% keyakinan
+            </span>
+            <h3 class="font-bold text-slate-800 text-sm leading-tight">
+              ${d.label}
+            </h3>
           </div>
-          ${multi ? `<span class="w-6 h-6 rounded-full bg-slate-100 text-slate-500
-                                  flex items-center justify-center text-[11px] font-bold shrink-0">
-                       ${i+1}</span>` : ''}
+
+          ${multi ? `
+            <span class="w-6 h-6 rounded-full bg-slate-100 text-slate-500
+                         flex items-center justify-center text-[11px] font-bold shrink-0">
+              ${i+1}
+            </span>` : ''}
         </div>
+
         <div class="h-1 bg-slate-100 rounded-full overflow-hidden mb-3">
-          <div class="${barCl} h-full rounded-full" style="width:${pct}%;transition:width .6s ease"></div>
+          <div class="${barCl} h-full rounded-full"
+               style="width:${pct}%;transition:width .6s ease"></div>
         </div>
-        <p class="text-xs text-slate-500 leading-relaxed">${d.desc}</p>
+
+        <p class="text-xs text-slate-500 leading-relaxed">
+          ${d.desc}
+        </p>
+
         ${solHtml}
         ${divider}
       </div>`;
   }).join('');
 
-  // Badge multi hanya muncul jika ada lebih dari 1 penyakit (tidak menghitung healthy)
+  // Badge hanya muncul jika ada lebih dari satu penyakit
   const multiBadge = diseaseOnly.length > 1 ? `
     <div class="flex items-center gap-2 text-xs font-medium text-orange-800
                 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-4">
@@ -559,22 +637,29 @@ function renderResult(data) {
 
   area.innerHTML = `
     <div class="fade-in flex flex-col gap-0">
+
       ${data.result_image ? `
       <div class="rounded-xl overflow-hidden shadow-sm mb-5 border border-slate-100">
-        <img src="${data.result_image}" class="w-full object-contain max-h-56 bg-slate-900"
+        <img src="${data.result_image}"
+             class="w-full object-contain max-h-56 bg-slate-900"
              alt="Hasil deteksi">
       </div>` : ''}
+
       ${multiBadge}
+
       <div>${cards}</div>
+
       <button onclick="downloadPDF()"
               class="mt-5 w-full py-3 border border-slate-300 hover:border-slate-400
-                     hover:bg-slate-50 text-slate-600 font-medium rounded-xl flex items-center
-                     justify-center gap-2 text-sm transition-all active:scale-[.98]">
-        <i class="ri-file-pdf-line text-slate-400"></i> Unduh Laporan PDF
+                     hover:bg-slate-50 text-slate-600 font-medium rounded-xl
+                     flex items-center justify-center gap-2 text-sm
+                     transition-all active:scale-[.98]">
+        <i class="ri-file-pdf-line text-slate-400"></i>
+        Unduh Laporan PDF
       </button>
+
     </div>`;
 }
-
 
 // ═══════════════════════════════════════════════════════════════
 // PDF
@@ -726,8 +811,11 @@ function downloadPDF() {
     if (y > 240) { doc.addPage(); _newPageBg(doc, pw, ph, mg, cw, C); y = 20; }
 
     const pct     = Math.round(d.best_confidence * 100);
-    const healthy = d.class_name === 'healthy';
-    const accentC = healthy ? C.green : (pct >= 70 ? C.amber : C.red);
+    // PENTING: key sehat dari backend adalah 'health', bukan 'healthy'.
+    const healthy = d.class_name === 'health';
+    // Sama seperti di renderResult(): sehat -> hijau; penyakit -> merah
+    // (≥90%) atau oren (<90%), skema sama untuk semua jenis penyakit.
+    const accentC = healthy ? C.green : (pct >= 90 ? C.red : C.amber);
 
     // ── Disease number pill (multi only) ─────────────────
     if (diseases.length > 1) {
