@@ -122,35 +122,67 @@ function toast(msg, type='info', dur=3200) {
   el.addEventListener('click', () => { clearTimeout(t); dismiss(el); });
 }
 
-function modal({ title='', message='', type='info', okText='OK', cancelText=null }) {
+function modal({ title = '', message = '', type = 'info', okText = 'OK', cancelText = null }) {
   return new Promise(res => {
-    const bd = document.createElement('div'); bd.className = 'cldd-bd';
-    const m  = document.createElement('div'); m.className  = 'cldd-modal';
+    // Hapus modal lama jika ada (safety)
+    const existing = document.querySelector('.cldd-bd');
+    if (existing) existing.remove();
+
+    const bd = document.createElement('div');
+    bd.className = 'cldd-bd';
+
+    const m = document.createElement('div');
+    m.className = 'cldd-modal';
     m.innerHTML = `
       <div class="cldd-mt">${title}</div>
       <div class="cldd-mb">${message}</div>
       <div class="cldd-actions">
-        ${cancelText ? `<button class="cldd-btn cldd-cancel" id="cldd-x">${cancelText}</button>` : ''}
+        ${cancelText ? `<button class="cldd-btn cldd-cancel" id="cldd-cancel">${cancelText}</button>` : ''}
         <button class="cldd-btn cldd-ok ${type}" id="cldd-ok">${okText}</button>
       </div>`;
-    bd.appendChild(m); document.body.appendChild(bd);
-    m.querySelector('#cldd-ok').focus();
 
-    function close(v) {
-      m.classList.add('out'); bd.classList.add('out');
-      setTimeout(() => bd.remove(), 180); res(v);
+    bd.appendChild(m);
+    document.body.appendChild(bd);
+
+    const okBtn = m.querySelector('#cldd-ok');
+    const cancelBtn = m.querySelector('#cldd-cancel');
+
+    okBtn.focus();
+
+    function cleanup(value) {
+      m.classList.add('out');
+      bd.classList.add('out');
+      
+      // Remove all listeners
+      document.removeEventListener('keydown', onKey);
+      bd.onclick = null;
+      if (okBtn) okBtn.onclick = null;
+      if (cancelBtn) cancelBtn.onclick = null;
+
+      setTimeout(() => {
+        bd.remove();
+        res(value);
+      }, 180);
     }
-    m.querySelector('#cldd-ok').onclick = () => close(true);
-    const cx = m.querySelector('#cldd-x'); if (cx) cx.onclick = () => close(false);
-    bd.onclick = e => { if (e.target === bd) close(false); };
+
     function onKey(e) {
-      if (e.key === 'Escape') { close(false); document.removeEventListener('keydown', onKey); }
-      if (e.key === 'Enter')  { close(true);  document.removeEventListener('keydown', onKey); }
+      if (e.key === 'Escape') {
+        cleanup(false);
+      } else if (e.key === 'Enter') {
+        cleanup(true);
+      }
     }
+
+    okBtn.onclick = () => cleanup(true);
+    if (cancelBtn) cancelBtn.onclick = () => cleanup(false);
+
+    bd.onclick = e => {
+      if (e.target === bd) cleanup(false);
+    };
+
     document.addEventListener('keydown', onKey);
   });
 }
-
 window.CLDD = {
   toast,
   alert:   (o) => typeof o==='string' ? modal({title:'Info',message:o,cancelText:null})   : modal({...o,cancelText:null}),
