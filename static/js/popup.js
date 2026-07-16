@@ -153,16 +153,16 @@ function modal({ title = '', message = '', type = 'info', okText = 'OK', cancelT
       m.classList.add('out');
       bd.classList.add('out');
       
-      // Remove all listeners
       document.removeEventListener('keydown', onKey);
       bd.onclick = null;
       if (okBtn) okBtn.onclick = null;
       if (cancelBtn) cancelBtn.onclick = null;
-
+    
+      // Percepat sedikit removal
       setTimeout(() => {
-        bd.remove();
+        if (bd.parentNode) bd.remove();
         res(value);
-      }, 180);
+      }, 120);   // dikurangi dari 180
     }
 
     function onKey(e) {
