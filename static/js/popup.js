@@ -99,7 +99,7 @@ if (!document.getElementById(SID)) {
   document.head.appendChild(s);
 }
 
-const ICONS = { info:'', success:'', error:'', warning:'' };
+// const ICONS = { info:'', success:'', error:'', warning:'' };
 const toasts = [];
 
 function dismiss(el) {
@@ -114,7 +114,7 @@ function toast(msg, type='info', dur=3200) {
   const el = document.createElement('div');
   el._type = type;
   el.className = `cldd-toast ${type}`;
-  el.innerHTML = `<span class="cldd-toast-icon">${ICONS[type]||'·'}</span><span>${msg}</span>`;
+  el.innerHTML = `<span>${msg}</span>`;
   el.style.bottom = `${24 + toasts.length * 50}px`;
   document.body.appendChild(el);
   toasts.push(el);
