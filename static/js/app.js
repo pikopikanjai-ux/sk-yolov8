@@ -58,6 +58,33 @@ function _clearState() {
 
 
 // ═══════════════════════════════════════════════════════════════
+// KONFIRMASI SUMBER GAMBAR
+// ═══════════════════════════════════════════════════════════════
+// Ditampilkan sebelum: (1) file explorer dibuka, (2) file hasil
+// drag-drop diproses, dan (3) kamera diaktifkan — mengingatkan
+// pengguna bahwa sistem hanya mengenali daun jagung, sekaligus
+// memberi jalan pintas ke halaman "Cara Deteksi".
+function confirmImageSource() {
+  const caraUrl = window.CLDD_CARA_DETEKSI_URL || '/cara-deteksi';
+  return CLDD.confirm({
+    title: 'Pastikan Ini Foto Daun Jagung',
+    message: `Sistem ini hanya dilatih untuk mendeteksi penyakit pada
+      <b>daun jagung</b>. Agar hasil deteksi akurat, pastikan gambar yang
+      akan diunggah benar-benar menampilkan daun jagung — bukan objek,
+      dokumen, atau tanaman lain.<br><br>
+      <a href="${caraUrl}"
+         class="inline-flex items-center gap-1 text-green-600 font-semibold
+                hover:text-green-700 hover:underline">
+        Lihat cara deteksi <i class="ri-arrow-right-line"></i>
+      </a>`,
+    type: 'warning',
+    okText: 'Mengerti, Lanjutkan',
+    cancelText: 'Batal',
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
 // UPLOAD TAB
 // ═══════════════════════════════════════════════════════════════
 // Format yang didukung — harus sinkron dengan ALLOWED di app.py.
@@ -69,6 +96,13 @@ const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'webp'];
 function _isValidImageFile(file) {
   const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
   return ALLOWED_EXT.includes(ext) && file.type.startsWith('image/');
+}
+
+// Dipanggil saat area upload diklik (buka file explorer).
+// Tampilkan konfirmasi dulu sebelum dialog pilih file muncul.
+async function handleUploadZoneClick() {
+  const ok = await confirmImageSource();
+  if (ok) document.getElementById('fileInput').click();
 }
 
 function handleImageUpload(e) {
@@ -161,11 +195,13 @@ document.addEventListener('DOMContentLoaded', () => {
     zone.addEventListener('dragleave', () => {
       zone.classList.remove('border-green-400','bg-green-50/60');
     });
-    zone.addEventListener('drop', e => {
+    zone.addEventListener('drop', async e => {
       e.preventDefault();
       zone.classList.remove('border-green-400','bg-green-50/60');
       const f = e.dataTransfer.files[0];
-      if (f) handleImageUpload({ target:{ files:[f] } });
+      if (!f) return;
+      const ok = await confirmImageSource();
+      if (ok) handleImageUpload({ target:{ files:[f] } });
     });
   }
   // Fullscreen: jika user keluar manual (Escape/back), matikan kamera
@@ -185,7 +221,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // CAMERA TAB
 // ═══════════════════════════════════════════════════════════════
 async function toggleCamera() {
-  camActive ? stopCamera() : await startCamera();
+  if (camActive) { stopCamera(); return; }
+  const ok = await confirmImageSource();
+  if (!ok) return;
+  await startCamera();
 }
 
 async function startCamera() {
@@ -489,11 +528,9 @@ function renderResult(data) {
         <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
           <i class="ri-search-eye-line text-2xl text-slate-300"></i></div>
         <div>
-          <p class="font-semibold text-slate-700">Objek Tidak Terdeteksi</p>
+          <p class="font-semibold text-slate-700">Tidak ditemukan penyakit</p>
           <p class="text-slate-400 text-sm mt-1 max-w-xs">
-            YOLOv8 tidak menemukan penyakit daun jagung maupun daun sehat pada gambar yang diunggah.
-            Pastikan gambar menampilkan daun jagung dengan jelas, tidak buram, dan memiliki pencahayaan yang cukup.
-          </p>
+            Tidak ada deteksi dengan keyakinan ≥ ${thr}%. Coba foto yang lebih jelas.</p>
         </div>
         ${data.result_image?`
         <div class="w-full mt-2">
