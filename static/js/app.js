@@ -100,7 +100,17 @@ function _isValidImageFile(file) {
 
 // Dipanggil saat area upload diklik (buka file explorer).
 // Tampilkan konfirmasi dulu sebelum dialog pilih file muncul.
-async function handleUploadZoneClick() {
+//
+// GUARD: #fileInput adalah child dari #uploadZone. Saat fileInput.click()
+// dipanggil secara terprogram di bawah, event klik-nya ikut bubbling naik
+// dan memicu onclick uploadZone ini lagi (event kedua, dengan target =
+// fileInput). Tanpa guard ini, popup konfirmasi akan muncul dua kali dan
+// terlihat seperti "tidak mau tertutup" walau dialog file tetap terbuka
+// (karena membuka dialog adalah perilaku default browser untuk klik pada
+// input type=file, terlepas dari status popup).
+async function handleUploadZoneClick(e) {
+  if (e && e.target && e.target.id === 'fileInput') return;
+
   const ok = await confirmImageSource();
   if (ok) document.getElementById('fileInput').click();
 }
