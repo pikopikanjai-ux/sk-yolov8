@@ -97,23 +97,32 @@ function _isValidImageFile(file) {
 let _uploadConfirmed = false;
 
 function handleUploadZoneClick() {
-  // Jika sudah ada gambar (previewContainer menampilkan preview),
-  // klik di dalam zone mungkin dari tombol hapus — biarkan bubble.
-  // Tapi jika tidak ada gambar, tampilkan konfirmasi dulu.
+  console.log('[UploadZone] Clicked, confirmed =', _uploadConfirmed);
+
   if (_uploadConfirmed) {
-    // Flag sudah set dari popup OK — langsung buka file picker
     _uploadConfirmed = false;
+    console.log('[UploadZone] Flag true → OPEN FILE PICKER');
     document.getElementById('fileInput').click();
     return;
   }
 
-  // Tampilkan popup konfirmasi
+  // Tampilkan popup
   confirmImageSource().then(ok => {
+    console.log('[Confirm] resolved with:', ok);
+
     if (!ok) return;
-    // Set flag, lalu trigger klik pada zone itu sendiri
-    // supaya handleUploadZoneClick() dipanggil lagi dengan flag = true
+
     _uploadConfirmed = true;
-    document.getElementById('uploadZone').click();
+    
+    // Langsung trigger fileInput, JANGAN klik zone lagi
+    // Ini lebih stabil
+    setTimeout(() => {
+      document.getElementById('fileInput').click();
+      _uploadConfirmed = false;   // reset flag
+    }, 50);   // beri sedikit waktu agar popup benar-benar hilang
+  }).catch(err => {
+    console.error('[Confirm] error:', err);
+    _uploadConfirmed = false;
   });
 }
 
