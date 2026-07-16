@@ -99,7 +99,7 @@ if (!document.getElementById(SID)) {
   document.head.appendChild(s);
 }
 
-const ICONS = { info:'💬', success:'✓', error:'✕', warning:'!' };
+const ICONS = { info:'', success:'', error:'', warning:'' };
 const toasts = [];
 
 function dismiss(el) {
