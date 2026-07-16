@@ -1,13 +1,3 @@
-# ── Tulis ulang dari versi user di dokumen ───────────────────
-# Versi user sudah punya:
-# - confirmImageSource() dengan window.CLDD_CARA_DETEKSI_URL
-# - handleUploadZoneClick() yang async (ini bug-nya)
-# - drag-drop yang sudah benar
-# - toggleCamera() yang sudah benar
-# - runDetection() dengan stopCamera() sebelum deteksi
-
-# Kita pakai versi user dari dokumen sebagai base, tulis ke file
-user_app_js = '''// static/js/app.js — CLDD Corn Leaf Disease Detector
 'use strict';
 
 // ── State ─────────────────────────────────────────────────────
