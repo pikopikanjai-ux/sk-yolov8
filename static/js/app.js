@@ -1,3 +1,15 @@
+# ── Tulis ulang dari versi user di dokumen ───────────────────
+# Versi user sudah punya:
+# - confirmImageSource() dengan window.CLDD_CARA_DETEKSI_URL
+# - handleUploadZoneClick() yang async (ini bug-nya)
+# - drag-drop yang sudah benar
+# - toggleCamera() yang sudah benar
+# - runDetection() dengan stopCamera() sebelum deteksi
+
+# Kita pakai versi user dari dokumen sebagai base, tulis ke file
+user_app_js = '''// static/js/app.js — CLDD Corn Leaf Disease Detector
+'use strict';
+
 // ── State ─────────────────────────────────────────────────────
 let uploadedFile    = null;
 let uploadedDataUrl = null;
@@ -607,21 +619,3 @@ function renderResult(data) {
       </button>
     </div>`;
 }
-'''
-
-# Append PDF functions dari versi user (tidak berubah sama sekali)
-pdf_section = open('/mnt/user-data/outputs/app.js').read()
-# Cari mulai dari downloadPDF ke akhir
-idx = pdf_section.find('\n// ═══════════════════════════════════════════════════════════════\n// PDF')
-if idx != -1:
-    pdf_part = pdf_section[idx:]
-else:
-    # fallback: cari function downloadPDF
-    idx = pdf_section.find('\nfunction downloadPDF()')
-    pdf_part = pdf_section[idx:]
-
-final = user_app_js + pdf_part
-
-with open('/mnt/user-data/outputs/app.js', 'w') as f:
-    f.write(final)
-
