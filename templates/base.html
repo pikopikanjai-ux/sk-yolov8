@@ -117,15 +117,6 @@
   </div>
 </footer>
 
-<!-- ── GLOBAL CONFIG (dipakai oleh app.js) ───────────────────
-     URL halaman "Cara Deteksi" — dibuat lewat url_for supaya
-     tetap valid meskipun routing berubah, lalu dipakai app.js
-     sebagai link di dalam popup konfirmasi upload/kamera.
-──────────────────────────────────────────────────────────── -->
-<script>
-  window.CLDD_CARA_DETEKSI_URL = "{{ url_for('cara_deteksi') }}";
-</script>
-
 <!-- ── SCRIPTS ────────────────────────────────────────────── -->
 <script src="{{ url_for('static', filename='js/popup.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
