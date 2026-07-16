@@ -62,12 +62,11 @@ function confirmImageSource() {
     title: 'Pastikan Ini Foto Daun Jagung',
     message: `Sistem ini hanya dilatih untuk mendeteksi penyakit pada
       <b>daun jagung</b>. Agar hasil deteksi akurat, pastikan gambar yang
-      akan diunggah benar-benar menampilkan daun jagung — bukan objek,
-      dokumen, atau tanaman lain.<br><br>
+      akan diunggah benar-benar menampilkan daun jagung dan bukan objek lain.<br><br>
       <a href="${caraUrl}"
          class="inline-flex items-center gap-1 text-green-600 font-semibold
                 hover:text-green-700 hover:underline">
-        Lihat cara deteksi <i class="ri-arrow-right-line"></i>
+        Lihat cara deteksi
       </a>`,
     type: 'warning',
     okText: 'Mengerti, Lanjutkan',
